@@ -1,9 +1,10 @@
-import 'package:chetawani/notification_controller.dart';
-import 'package:flutter/material.dart';
 import 'dart:async';
 
+import 'package:chetawani/notification_controller.dart';
+import 'package:chetawani/phone_state_controller.dart';
+import 'package:flutter/material.dart';
 import 'package:notifications/notifications.dart';
-import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:phone_state/phone_state.dart';
 
 void main() => runApp(const MaterialApp(home: MyApp()));
 
@@ -16,7 +17,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final Notifications _notifications;
-  late final StreamSubscription<NotificationEvent> _subscription;
+  late final StreamSubscription<NotificationEvent> _notificationEventSubscription;
+  StreamSubscription<PhoneStateStatus?>? _phoneStateSubscription;
   String? phoneNumber;
   DateTime? _timestamp;
 
@@ -24,8 +26,8 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     initPlatformState();
-    NotificationController.initializeLocalNotifications();
-    NotificationController.startListeningNotificationEvents();
+    initNotificationController();
+    initPhoneStateController();
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -33,10 +35,26 @@ class _MyAppState extends State<MyApp> {
     startListening();
   }
 
+  void initNotificationController() {
+    NotificationController.initializeLocalNotifications();
+    NotificationController.startListeningNotificationEvents();
+  }
+
+  void initPhoneStateController() async {
+    final controller = PhoneStateController(
+      onCallEnded: () {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Call ended')));
+        NotificationController.createSpamCheckNotification(phoneNumber!);
+      },
+    );
+    final subscription = await controller.initStream();
+    if (subscription != null) _phoneStateSubscription = subscription;
+  }
+
   void startListening() {
     _notifications = Notifications();
     try {
-      _subscription = _notifications.notificationStream!.listen(onData);
+      _notificationEventSubscription = _notifications.notificationStream!.listen(onData);
     } on NotificationException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
@@ -50,12 +68,6 @@ class _MyAppState extends State<MyApp> {
             DateTime.now().difference(_timestamp!) < const Duration(seconds: 2)) {
           return;
         }
-        debugPrint('Incoming call from $phoneNumber');
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Incoming call from $phoneNumber')));
-
-        NotificationController.createSpamCheckNotification(phoneNumber!);
-
         _timestamp = DateTime.now();
       }
     }
@@ -75,7 +87,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _notificationEventSubscription.cancel();
+    _phoneStateSubscription?.cancel();
     super.dispose();
   }
 }
