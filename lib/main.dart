@@ -1,7 +1,9 @@
+import 'package:chetawani/notification_controller.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:notifications/notifications.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 
 void main() => runApp(const MaterialApp(home: MyApp()));
 
@@ -15,13 +17,15 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final Notifications _notifications;
   late final StreamSubscription<NotificationEvent> _subscription;
+  String? phoneNumber;
   DateTime? _timestamp;
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
-    // initFlutterLocalNotificationsPlugin();
+    NotificationController.initializeLocalNotifications();
+    NotificationController.startListeningNotificationEvents();
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
@@ -40,7 +44,7 @@ class _MyAppState extends State<MyApp> {
 
   void onData(NotificationEvent event) {
     if (event.message?.toLowerCase().contains('incoming call') == true) {
-      final String? phoneNumber = event.title?.replaceAll(' ', '');
+      phoneNumber = event.title?.replaceAll(' ', '');
       if (phoneNumber != null) {
         if (_timestamp != null &&
             DateTime.now().difference(_timestamp!) < const Duration(seconds: 2)) {
@@ -50,7 +54,9 @@ class _MyAppState extends State<MyApp> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Incoming call from $phoneNumber')));
 
-        //mestamp = DateTime.now();
+        NotificationController.createSpamCheckNotification(phoneNumber!);
+
+        _timestamp = DateTime.now();
       }
     }
   }
