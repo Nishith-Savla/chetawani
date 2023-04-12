@@ -5,9 +5,9 @@ import 'package:phone_state/phone_state.dart';
 
 class PhoneStateController {
   StreamSubscription<PhoneStateStatus?>? subscription;
-  late final void Function() onCallEnded;
+  late final void Function()? onCallEnded;
 
-  PhoneStateController({required this.onCallEnded});
+  PhoneStateController({this.onCallEnded});
 
   Future<StreamSubscription<PhoneStateStatus?>?> initStream() async {
     final granted = await requestPermission();
@@ -26,8 +26,12 @@ class PhoneStateController {
 
   void setStream() {
     subscription = PhoneState.phoneStateStream.listen((status) {
-      if (status == PhoneStateStatus.CALL_ENDED) {
-        onCallEnded();
+      switch (status) {
+        case PhoneStateStatus.CALL_ENDED:
+          if (onCallEnded != null) onCallEnded!();
+          break;
+        default:
+          break;
       }
     });
   }

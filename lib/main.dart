@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:chetawani/notification_controller.dart';
-import 'package:chetawani/phone_state_controller.dart';
+import 'package:chetawani/constants.dart';
+import 'package:chetawani/models/phone_spam_check_response.dart';
+import 'package:chetawani/controllers/notification_controller.dart';
+import 'package:chetawani/controllers/phone_state_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:notifications/notifications.dart';
 import 'package:phone_state/phone_state.dart';
+import 'package:http/http.dart' as http;
 
 void main() => runApp(const MaterialApp(home: MyApp()));
 
@@ -16,7 +20,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late final Notifications _notifications;
   late final StreamSubscription<NotificationEvent> _notificationEventSubscription;
   StreamSubscription<PhoneStateStatus?>? _phoneStateSubscription;
   String? phoneNumber;
@@ -30,8 +33,7 @@ class _MyAppState extends State<MyApp> {
     initPhoneStateController();
   }
 
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
+  void initPlatformState() {
     startListening();
   }
 
@@ -42,19 +44,48 @@ class _MyAppState extends State<MyApp> {
 
   void initPhoneStateController() async {
     final controller = PhoneStateController(
-      onCallEnded: () {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Call ended')));
-        NotificationController.createSpamCheckNotification(phoneNumber!);
-      },
+      onCallEnded: handleCallEnded,
     );
-    final subscription = await controller.initStream();
-    if (subscription != null) _phoneStateSubscription = subscription;
+    try {
+      final subscription = await controller.initStream();
+      if (subscription != null) _phoneStateSubscription = subscription;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> handleCallIncoming() async {
+    // make a get request to the server to check if the phone number is spam
+    var url = Constants.baseURL.resolve('/phoneSpamCount/$phoneNumber');
+    debugPrint(url.toString());
+    final response = await http.get(url);
+    final Map<String, dynamic> json = jsonDecode(response.body);
+    debugPrint(json.toString());
+
+    if (json['error'] != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(json['error'])));
+      return;
+    }
+
+    try {
+      final phoneSpamCheckResponse = PhoneSpamCheckResponse.fromJson(json);
+      await NotificationController.createSpamAlertNotification(phoneSpamCheckResponse);
+      debugPrint('Notification created for Phone Spam Check Response: $phoneSpamCheckResponse');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
+  void handleCallEnded() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Call ended')));
+    NotificationController.createSpamCheckNotification(phoneNumber!);
   }
 
   void startListening() {
-    _notifications = Notifications();
     try {
-      _notificationEventSubscription = _notifications.notificationStream!.listen(onData);
+      _notificationEventSubscription = Notifications().notificationStream!.listen(onData);
     } on NotificationException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
@@ -68,6 +99,7 @@ class _MyAppState extends State<MyApp> {
             DateTime.now().difference(_timestamp!) < const Duration(seconds: 2)) {
           return;
         }
+        handleCallIncoming();
         _timestamp = DateTime.now();
       }
     }
@@ -77,10 +109,10 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications example app'),
+        title: const Text('Chetawani'),
       ),
       body: const Center(
-        child: Text('Notifications example app'),
+        child: Text('Your spams will be visible here'),
       ),
     );
   }
