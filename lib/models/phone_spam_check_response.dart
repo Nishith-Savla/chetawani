@@ -15,10 +15,8 @@ class PhoneSpamCheckResponse {
     return PhoneSpamCheckResponse(
       phoneNumber: json['phone_no'].toString(),
       downvotes: json['down_votes'],
-      upvotes: 0,
-      riskScore: 0,
-      // upvotes: json['up_votes'],
-      // riskScore: json['spam_risk'],
+      upvotes: json['up_votes'],
+      riskScore: json['spam_risk'],
     );
   }
 }

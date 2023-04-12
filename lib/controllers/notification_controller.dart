@@ -31,10 +31,10 @@ class NotificationController {
 
   @pragma('vm:entry-point')
   static Future<void> onActionReceivedMethod(ReceivedAction receivedAction) async {
-    String spamStatus = '-1';
+    String spamStatus = '1';
     if (receivedAction.buttonKeyPressed == 'spam') {
       debugPrint("${receivedAction.payload?['phoneNumber']} is a spam");
-      spamStatus = '1';
+      spamStatus = '-1';
     }
     if (receivedAction.payload?['phoneNumber'] != null) {
       final String? error =
@@ -49,6 +49,7 @@ class NotificationController {
       PhoneSpamCheckResponse phoneSpamCheckResponse) async {
     bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
     if (!isAllowed) return;
+    debugPrint(phoneSpamCheckResponse.riskScore.toString());
 
     if (phoneSpamCheckResponse.riskScore > 0.5) {
       debugPrint((await AwesomeNotifications().createNotification(
