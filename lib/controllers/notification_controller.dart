@@ -1,12 +1,11 @@
-import 'dart:convert';
-
 import 'package:awesome_notifications/awesome_notifications.dart';
-import 'package:chetawani/constants.dart';
 import 'package:chetawani/models/phone_spam_check_response.dart';
+import 'package:chetawani/utils.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 class NotificationController {
+  static Function(String phoneNumber)? onMarkAsSpam;
+
   static Future<void> initializeLocalNotifications() async {
     await AwesomeNotifications().initialize(
       null,
@@ -35,6 +34,7 @@ class NotificationController {
     if (receivedAction.buttonKeyPressed == 'spam') {
       debugPrint("${receivedAction.payload?['phoneNumber']} is a spam");
       spamStatus = '-1';
+      if (onMarkAsSpam != null) onMarkAsSpam!(receivedAction.payload!['phoneNumber']!);
     }
     if (receivedAction.payload?['phoneNumber'] != null) {
       final String? error =
@@ -45,14 +45,14 @@ class NotificationController {
     }
   }
 
-  static Future<void> createSpamAlertNotification(
+  static Future<bool> createSpamAlertNotification(
       PhoneSpamCheckResponse phoneSpamCheckResponse) async {
     bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
-    if (!isAllowed) return;
+    if (!isAllowed) return false;
     debugPrint(phoneSpamCheckResponse.riskScore.toString());
 
     if (phoneSpamCheckResponse.riskScore > 0.5) {
-      debugPrint((await AwesomeNotifications().createNotification(
+      await AwesomeNotifications().createNotification(
         content: NotificationContent(
           id: -1, // -1 is replaced by a random number
           channelKey: 'Default',
@@ -61,15 +61,18 @@ class NotificationController {
               "${phoneSpamCheckResponse.riskScore * 100}% reports have marked ${phoneSpamCheckResponse.phoneNumber} as a spam",
           notificationLayout: NotificationLayout.Default,
         ),
-      ))
-          .toString());
+      );
+      debugPrint('Notification created 1');
+      return false;
     }
+    debugPrint('Notification not created 1');
+    return true;
   }
 
   static Future<void> createSpamCheckNotification(String phoneNumber) async {
     bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
     if (!isAllowed) return;
-
+    debugPrint('Creating notification for $phoneNumber');
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
           id: -1, // -1 is replaced by a random number
@@ -90,13 +93,12 @@ class NotificationController {
         )
       ],
     );
+    debugPrint('Notification created 2');
   }
 
   static Future<String?> updateSpamStatus(String phoneNumber, String status) async {
-    var url = Constants.baseURL.resolve('/phoneCallVote/$phoneNumber/vote?upvote=$status');
-    debugPrint(url.toString());
-    final response = await http.post(url);
-    final Map<String, dynamic> json = jsonDecode(response.body);
+    final response = await dio.post('/phoneCallVote/$phoneNumber/vote?upvote=$status');
+    final Map<String, dynamic> json = response.data;
     debugPrint(json.toString());
 
     if (json['error'] != null) {
